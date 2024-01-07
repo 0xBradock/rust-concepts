@@ -6,6 +6,13 @@
 
 - Outline the objective of the article: to provide a comprehensive guide to error handling in Rust.
 
+## TL;DR
+
+- `panic!`: An error occured and I want to stop my program and communicate the reason
+- `Result`: An error may occur, in that case I want to communicate upstream the reason and try to recover
+- `Option`: A value can exist or not; if it doesn't I want to let upstream now that the value was not found and continue execution
+- `?`:
+
 ## Error types
 
 What is an error?
@@ -23,18 +30,7 @@ Different languages treat errors in different ways.
 Javascript has [`try/catch`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Control_flow_and_error_handling#exception_handling_statements) blocks, Python has [`exceptions`](https://docs.python.org/3/tutorial/errors.html), C language has the [billion-dollar mistake](https://en.wikipedia.org/wiki/Tony_Hoare) (`*NULL` pointer) and in Go (Golang) an error is an [interface](https://go.dev/blog/error-handling-and-go) that defines a method `Error()` that returns a `string`.
 Rust has `Result<T, E>`, `Option<T>`, `panic!()` and the `?` operator. This is what I pretend to explore in the following lines.
 
-## Error in Rust
-
-I think Rust is amazing at handling errors.
-It prevents them in a way no other programming language does and it has great language constructs to handle errors while maintaining code readability.
-
-### Preventing Errors
-
-Before speaking about runtime errors we need to consider that Rust is a compiled language, strongly typed with a ruthless borrow checker and a unique ownership system.
-Each one of those features adds a layer of protection avoiding errors being present during runtime in the first place.
-I may cover those topics in a further article.
-
-### Explicit vs Implicit Error Handling Paradigm
+## Explicit vs Implicit Error Handling Paradigm
 
 There are two paradigms when dealing with errors:
 
@@ -71,9 +67,16 @@ And as you guessed, Rust handles errors explicitly.
 
 Let's talk about the different methods, starting from the most Unrecoverable.
 
-### Handling Errors
+## Preventing Errors
 
-#### `panic!()`
+I think Rust is amazing at handling errors.
+It prevents them in a way no other programming language does and it has great language constructs to handle errors while maintaining code readability.
+
+Before speaking about runtime errors we need to consider that Rust is a compiled language, strongly typed with a ruthless borrow checker and a unique ownership system.
+Each one of those features adds a layer of protection avoiding errors being present during runtime in the first place.
+I may cover those topics in a further article.
+
+## `panic!()`
 
 > Unrecoverable error, halts all threads and the program returning its message to `stderr`
 
@@ -135,7 +138,7 @@ fn back_trace_fn_2() {
 By default this is the error message returned:
 
 ```bash
-❯ cargo run              
+❯ cargo run
     Finished dev [unoptimized + debuginfo] target(s) in 0.00s
      Running `target/debug/error`
 thread 'main' panicked at src/panic.rs:18:5:
@@ -144,7 +147,6 @@ note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
 ```
 
 But, if setting `RUST_BACKTRACE=1` we get the following result
-
 
 ```bash
 ❯ cargo run
@@ -170,6 +172,7 @@ stack backtrace:
              at /rustc/a28077b28a02b92985b3a3faecf92813155f1ea1/library/core/src/ops/function.rs:250:5
 note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
 ```
+
 - **Argument parsing**: when calling your code (and possibly setting up the execution's configuration) with bad input
 
 > [!Node]
@@ -180,8 +183,7 @@ note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose bac
 
 > Return a wrapped value in a successful case, or just an information that it failed, without giving a reason
 
-[`Option`](https://doc.rust-lang.org/std/option/enum.Option.html) is an [`enum`](https://doc.rust-lang.org/rust-by-example/custom_types/enum.html) generally used in function return types.
-It is used to wrap the correct value or communicate its absence.
+[`Option`](https://doc.rust-lang.org/std/option/enum.Option.html) is an [`enum`](https://doc.rust-lang.org/rust-by-example/custom_types/enum.html) generally used to wrap the correct value or communicate its absence.
 
 ```rust
 // `Option` definition: https://doc.rust-lang.org/std/option/enum.Option.html
@@ -191,13 +193,63 @@ pub enum Option<T> {
 }
 ```
 
-It is used when failling to perform the operation is not critical to the execution of the program and/or the program can successfuly continue its execution.
+Some of the use cases:
+
+- **No critical fail**: when failing to operate is not critical to the execution of the program (see the `serde` example below).
+- **Nullable pointer**: instead of using `*NULL` Rust uses `Option<Box<T>>` to test for the presence of a pointer. Here, `Box<T>` can be interpreted as a pointer to `T`
+- **Optional struct fields**:
+
+```rust
+pub struct Vehicle {
+    brand: String,
+    year: u16,
+}
+
+pub struct Person {
+    name: String,
+    age: u8,
+    vehicle: Option<Vehicle>,
+}
+
+pub fn without_car() -> Person {
+    return Person {
+        age: 99,
+        name: String::from("Brad"),
+        vehicle: None,
+    };
+}
+
+pub fn with_car() -> Person {
+    return Person {
+        age: 99,
+        name: String::from("Brad"),
+        vehicle: Some(Vehicle {
+            brand: String::from("bmw"),
+            year: 2024,
+        }),
+    };
+}
+
+let w_car = option::with_car();
+println!("{:?}", w_car);
+
+let wo_car = option::without_car();
+println!("{:?}", wo_car);
+```
+
+This yields:
+
+```bash
+❯ cargo run -q
+Person { name: "Brad", age: 99, vehicle: Some(Vehicle { brand: "bmw", year: 2024 }) }
+Person { name: "Brad", age: 99, vehicle: None }
+```
 
 ### Example
 
 One of the uses in the [serde](https://github.com/serde-rs/serde/blob/03eec42c3313b36da416be1486e9ecac345784d5/serde/build.rs#L69) library is during its build phase.
 The function `rustc_minor_version` checks for different CLI configuration flags returning them when found; and `None`, if not.
-The `None` variant (variant is an `enum` possibility) is not critical and allow the program to continue execution regardless.
+Returning `None` is not critical and allow the program to continue its execution regardless.
 
 ```rust
 // see: https://github.com/serde-rs/serde/blob/03eec42c3313b36da416be1486e9ecac345784d5/serde/build.rs#L69
@@ -236,17 +288,6 @@ fn rustc_minor_version() -> Option<u32> {
 }
 ```
 
-### Methods
-
-In the case above the call to `rustc_minor_version` used a [`match`](https://doc.rust-lang.org/rust-by-example/flow_control/match.html?highlight=match#match) expression.
-This is usually seen as the canonical way to process an `Option`.
-However, `Option` has many [methods](https://doc.rust-lang.org/std/option/enum.Option.html#implementations) that can be called.
-
-- [`unwrap()`](https://doc.rust-lang.org/std/option/enum.Option.html#method.unwrap): If successful returns `Some`; `panic!`, otherwise.
-- [`expect(msg)`](https://doc.rust-lang.org/std/option/enum.Option.html#method.expect): If successful returns `Some`; `panic!(msg)`
-- [`unwrap_or(default: T)`](https://doc.rust-lang.org/std/option/enum.Option.html#method.unwrap_or): If successful returns `Some`; `default`, otherwise
-- [`ok_or(err: E)`](https://doc.rust-lang.org/std/option/enum.Option.html#method.ok_or): Converts this `Option` into a `Result`. Maps `Some(v)` to `Ok(v)` and `None` to `Err(err)`
-
 ## Conclusion
 
 <!-- Summarize key takeaways and encourage readers to embrace Rust's error-handling features for writing safe and reliable code. Invite them to explore additional resources for a deeper understanding of advanced error-handling techniques in Rust. -->
@@ -265,3 +306,11 @@ Just to give an idea, here are how many times each term appears in some librarie
 [rust-lang]: https://github.com/rust-lang/rust
 [serde]: https://github.com/serde-rs/serde
 [starship]: https://github.com/starship/starship
+
+# References
+
+The main references used to write this article:
+
+- [std lib]:
+- [Rust Book]:
+- [Rust By Example](https://doc.rust-lang.org/rust-by-example/index.html)
