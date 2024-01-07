@@ -113,6 +113,63 @@ let home: IpAddr = "127.0.0.1"
   .expect("Hardcoded IP address should be valid");
 ```
 
+Backtrace can be set to identify all functions in the stack involved in the `panic!` call.
+Supposing the `panic!` call happens deep in the stack, like in the example below:
+
+```rust
+fn main() {
+    panic::back_trace_panic();
+}
+
+pub fn back_trace_panic() {
+    back_trace_fn_1()
+}
+fn back_trace_fn_1() {
+    back_trace_fn_2()
+}
+fn back_trace_fn_2() {
+    panic!("panic from fn 4")
+}
+```
+
+By default this is the error message returned:
+
+```bash
+❯ cargo run              
+    Finished dev [unoptimized + debuginfo] target(s) in 0.00s
+     Running `target/debug/error`
+thread 'main' panicked at src/panic.rs:18:5:
+panic from fn 4
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+```
+
+But, if setting `RUST_BACKTRACE=1` we get the following result
+
+
+```bash
+❯ cargo run
+   Compiling error v0.1.0 (/Users/camilocoelho/Code/Github/rust-concepts/errors)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.07s
+     Running `target/debug/error`
+thread 'main' panicked at src/panic.rs:18:5:
+panic from fn 4
+stack backtrace:
+   0: rust_begin_unwind
+             at /rustc/a28077b28a02b92985b3a3faecf92813155f1ea1/library/std/src/panicking.rs:597:5
+   1: core::panicking::panic_fmt
+             at /rustc/a28077b28a02b92985b3a3faecf92813155f1ea1/library/core/src/panicking.rs:72:14
+   2: error::panic::back_trace_fn_2
+             at ./src/panic.rs:18:5
+   3: error::panic::back_trace_fn_1
+             at ./src/panic.rs:15:5
+   4: error::panic::back_trace_panic
+             at ./src/panic.rs:12:5
+   5: error::main
+             at ./src/main.rs:5:5
+   6: core::ops::function::FnOnce::call_once
+             at /rustc/a28077b28a02b92985b3a3faecf92813155f1ea1/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+```
 - **Argument parsing**: when calling your code (and possibly setting up the execution's configuration) with bad input
 
 > [!Node]
