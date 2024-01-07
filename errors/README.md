@@ -176,6 +176,77 @@ note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose bac
 > I see calling `panic!` as: **fail fast**, there is no reason to try and recover.
 > In every other case `Result` should be prefered
 
+## `Option<T>`
+
+> Return a wrapped value in a successful case, or just an information that it failed, without giving a reason
+
+[`Option`](https://doc.rust-lang.org/std/option/enum.Option.html) is an [`enum`](https://doc.rust-lang.org/rust-by-example/custom_types/enum.html) generally used in function return types.
+It is used to wrap the correct value or communicate its absence.
+
+```rust
+// `Option` definition: https://doc.rust-lang.org/std/option/enum.Option.html
+pub enum Option<T> {
+  Some(T),  // Some value of type T
+  None,     // No value
+}
+```
+
+It is used when failling to perform the operation is not critical to the execution of the program and/or the program can successfuly continue its execution.
+
+### Example
+
+One of the uses in the [serde](https://github.com/serde-rs/serde/blob/03eec42c3313b36da416be1486e9ecac345784d5/serde/build.rs#L69) library is during its build phase.
+The function `rustc_minor_version` checks for different CLI configuration flags returning them when found; and `None`, if not.
+The `None` variant (variant is an `enum` possibility) is not critical and allow the program to continue execution regardless.
+
+```rust
+// see: https://github.com/serde-rs/serde/blob/03eec42c3313b36da416be1486e9ecac345784d5/serde/build.rs#L69
+let minor = match rustc_minor_version() {
+  Some(minor) => minor,
+  None => return,
+};
+
+fn rustc_minor_version() -> Option<u32> {
+    let rustc = match env::var_os("RUSTC") {
+        Some(rustc) => rustc,
+        None => return None,
+    };
+
+    let output = match Command::new(rustc).arg("--version").output() {
+        Ok(output) => output,
+        Err(_) => return None,
+    };
+
+    let version = match str::from_utf8(&output.stdout) {
+        Ok(version) => version,
+        Err(_) => return None,
+    };
+
+    let mut pieces = version.split('.');
+    if pieces.next() != Some("rustc 1") {
+        return None;
+    }
+
+    let next = match pieces.next() {
+        Some(next) => next,
+        None => return None,
+    };
+
+    u32::from_str(next).ok()
+}
+```
+
+### Methods
+
+In the case above the call to `rustc_minor_version` used a [`match`](https://doc.rust-lang.org/rust-by-example/flow_control/match.html?highlight=match#match) expression.
+This is usually seen as the canonical way to process an `Option`.
+However, `Option` has many [methods](https://doc.rust-lang.org/std/option/enum.Option.html#implementations) that can be called.
+
+- [`unwrap()`](https://doc.rust-lang.org/std/option/enum.Option.html#method.unwrap): If successful returns `Some`; `panic!`, otherwise.
+- [`expect(msg)`](https://doc.rust-lang.org/std/option/enum.Option.html#method.expect): If successful returns `Some`; `panic!(msg)`
+- [`unwrap_or(default: T)`](https://doc.rust-lang.org/std/option/enum.Option.html#method.unwrap_or): If successful returns `Some`; `default`, otherwise
+- [`ok_or(err: E)`](https://doc.rust-lang.org/std/option/enum.Option.html#method.ok_or): Converts this `Option` into a `Result`. Maps `Some(v)` to `Ok(v)` and `None` to `Err(err)`
+
 ## Conclusion
 
 <!-- Summarize key takeaways and encourage readers to embrace Rust's error-handling features for writing safe and reliable code. Invite them to explore additional resources for a deeper understanding of advanced error-handling techniques in Rust. -->
